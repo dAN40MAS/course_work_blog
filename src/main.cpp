@@ -5,6 +5,7 @@
 #include <map>
 #include <algorithm>
 #include <sstream>
+#include <memory>
 
 using namespace std;
 
@@ -101,15 +102,16 @@ class User {
     string username;
     string password;
     Profile profile;
-    Blog blog;
+    unique_ptr<Blog> blog;
 
 public:
     User(const string& username, const string& password, const Profile& profile)
-        : username(username), password(password), profile(profile), blog(username) {}
+        : username(username), password(password), profile(profile),
+          blog(make_unique<Blog>(username)) {}
 
     bool check_password(const string& pwd) const { return password == pwd; }
 
-    Blog& get_blog() { return blog; }
+    Blog& get_blog() { return *blog; }
     Profile& get_profile() { return profile; }
     string get_username() const { return username; }
 
@@ -121,54 +123,50 @@ public:
 
 class IUserRepository {
 public:
-    virtual void add_user(User* user) = 0;
-    virtual User* find_user(const string& username) = 0;
-    virtual vector<User*> get_all_users() = 0;
+    virtual void add_user(shared_ptr<User> user) = 0;
+    virtual shared_ptr<User> find_user(const string& username) = 0;
+    virtual vector<shared_ptr<User>> get_all_users() = 0;
     virtual ~IUserRepository() = default;
 };
 
 class UserRepository : public IUserRepository {
-    map<string, User*> users;
+    map<string, shared_ptr<User>> users;
 
 public:
-    ~UserRepository() {
-        for (auto& pair : users) delete pair.second;
-    }
-
-    void add_user(User* user) override {
+    void add_user(shared_ptr<User> user) override {
         users[user->get_username()] = user;
     }
 
-    User* find_user(const string& username) override {
+    shared_ptr<User> find_user(const string& username) override {
         auto it = users.find(username);
         return it != users.end() ? it->second : nullptr;
     }
 
-    vector<User*> get_all_users() override {
-        vector<User*> result;
+    vector<shared_ptr<User>> get_all_users() override {
+        vector<shared_ptr<User>> result;
         for (const auto& pair : users) result.push_back(pair.second);
         return result;
     }
 };
 
 class AuthService {
-    IUserRepository* user_repo;
+    shared_ptr<IUserRepository> user_repo;
 
 public:
-    AuthService(IUserRepository* repo) : user_repo(repo) {}
+    AuthService(shared_ptr<IUserRepository> repo) : user_repo(repo) {}
 
-    User* authenticate(const string& username, const string& password) {
-        User* user = user_repo->find_user(username);
-        return user && user->check_password(password) ? user : nullptr;
+    shared_ptr<User> authenticate(const string& username, const string& password) {
+        auto user = user_repo->find_user(username);
+        return (user && user->check_password(password)) ? user : nullptr;
     }
 };
 
 class BlogService {
-    IUserRepository* user_repo;
+    shared_ptr<IUserRepository> user_repo;
 
     pair<string, int> find_post(int global_index) {
         int counter = 1;
-        for (User* user : user_repo->get_all_users()) {
+        for (auto& user : user_repo->get_all_users()) {
             auto& posts = user->get_blog().get_posts();
             for (size_t i = 0; i < posts.size(); ++i) {
                 if (counter++ == global_index) return {user->get_username(), i};
@@ -178,10 +176,10 @@ class BlogService {
     }
 
 public:
-    BlogService(IUserRepository* repo) : user_repo(repo) {}
+    BlogService(shared_ptr<IUserRepository> repo) : user_repo(repo) {}
 
     bool create_post(const string& username, const string& title, const string& content) {
-        if (User* user = user_repo->find_user(username)) {
+        if (auto user = user_repo->find_user(username)) {
             user->get_blog().add_post(Post(username, title, content));
             return true;
         }
@@ -190,9 +188,9 @@ public:
 
     void print_all_posts() {
         cout << "\n═════════ Все посты в системе ═════════\n";
-        for (User* user : user_repo->get_all_users()) {
+        for (auto& user : user_repo->get_all_users()) {
             auto& posts = user->get_blog().get_posts();
-            if (!posts.empty()) { // Check if the user has any posts
+            if (!posts.empty()) {
                 cout << "\n═════════ Посты пользователя " << user->get_username() << " ═════════\n";
                 for (const auto& post : posts) {
                     post.print();
@@ -205,7 +203,7 @@ public:
         auto [author, index] = find_post(post_index);
         if (author.empty()) return false;
 
-        if (User* user = user_repo->find_user(author)) {
+        if (auto user = user_repo->find_user(author)) {
             auto& posts = user->get_blog().get_posts();
             if (index < posts.size()) {
                 posts[index].add_comment(Comment(commenter, text));
@@ -217,7 +215,7 @@ public:
 
     void print_post_numbers() {
         int counter = 1;
-        for (User* user : user_repo->get_all_users()) {
+        for (auto& user : user_repo->get_all_users()) {
             for (const auto& post : user->get_blog().get_posts()) {
                 cout << counter++ << ". " << post.get_title()
                      << " (" << user->get_username() << ")\n";
@@ -227,34 +225,37 @@ public:
 };
 
 class UserFactory {
-    IUserRepository* repo;
+    shared_ptr<IUserRepository> repo;
 
 public:
-    explicit UserFactory(IUserRepository* repo) : repo(repo) {}
+    explicit UserFactory(shared_ptr<IUserRepository> repo) : repo(repo) {}
 
-    User* create_user(
+    shared_ptr<User> create_user(
         const string& username,
         const string& password,
         const string& bio,
         const vector<string>& interests
     ) {
-        User* user = new User(username, password, Profile(bio, interests));
+        auto user = make_shared<User>(username, password, Profile(bio, interests));
         repo->add_user(user);
         return user;
     }
 };
 
 class BlogConsole {
-    UserRepository* user_repo = new UserRepository();
-    AuthService* auth_service = new AuthService(user_repo);
-    BlogService* blog_service = new BlogService(user_repo);
-    User* current_user = nullptr;
+    shared_ptr<UserRepository> user_repo = make_shared<UserRepository>();
+    shared_ptr<AuthService> auth_service;
+    shared_ptr<BlogService> blog_service;
+    shared_ptr<User> current_user;
 
-public: // Make the destructor public
-    ~BlogConsole() {
-        delete blog_service;
-        delete auth_service;
-        delete user_repo;
+public:
+    BlogConsole() {
+        auth_service = make_shared<AuthService>(user_repo);
+        blog_service = make_shared<BlogService>(user_repo);
+
+        UserFactory factory(user_repo);
+        factory.create_user("admin", "admin", "Администратор", {"программирование"});
+        factory.create_user("user", "123", "Обычный пользователь", {"книги", "музыка"});
     }
 
     void print_main_menu() {
@@ -343,13 +344,6 @@ public: // Make the destructor public
                 }
             }
         } while (choice != 6);
-    }
-
-public:
-    BlogConsole() {
-        UserFactory factory(user_repo);
-        factory.create_user("admin", "admin", "Администратор", {"программирование"});
-        factory.create_user("user", "123", "Обычный пользователь", {"книги", "музыка"});
     }
 
     void run() {
