@@ -1,4 +1,4 @@
-#include "Profile.h"
+#include "../include/Profile.h"
 #include <iostream>
 
 Profile::Profile(const std::string& bio, const std::vector<std::string>& interests)

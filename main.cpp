@@ -1,4 +1,4 @@
-#include "BlogConsole.h"
+#include "include/BlogConsole.h"
 
 int main() {
     BlogConsole console;

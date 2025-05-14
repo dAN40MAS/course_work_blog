@@ -6,7 +6,7 @@ std::pair<std::string, int> BlogService::find_post(int global_index) {
     for (auto& user : user_repo->get_all_users()) {
         auto& posts = user->get_blog().get_posts();
         for (size_t i = 0; i < posts.size(); ++i) {
-            if (counter++ == global_index) return {user->get_username(), i};
+            if (counter++ == global_index) return {user->get_username(), static_cast<int>(i)};
         }
     }
     return {"", -1};
@@ -41,7 +41,7 @@ bool BlogService::add_comment(const std::string& commenter, int post_index, cons
 
     if (auto user = user_repo->find_user(author)) {
         auto& posts = user->get_blog().get_posts();
-        if (index < posts.size()) {
+        if (index >= 0 && static_cast<size_t>(index) < posts.size()) {
             posts[index].add_comment(Comment(commenter, text));
             return true;
         }
