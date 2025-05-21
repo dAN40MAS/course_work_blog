@@ -1,7 +1,9 @@
 #pragma once
-#include "Post.h"
+
 #include <vector>
 #include <string>
+#include <iostream>
+#include "Post.h"
 
 class Blog {
     std::string owner;
@@ -13,4 +15,7 @@ public:
     void print_posts() const;
     std::vector<Post>& get_posts();
     std::string get_owner() const;
+    
+    Json::Value toJson() const;
+    static Blog fromJson(const Json::Value& json);
 };

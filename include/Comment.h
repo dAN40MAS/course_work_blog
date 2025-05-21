@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <json/json.h>
 #include <ctime>
 
 class Comment {
@@ -10,4 +11,7 @@ class Comment {
 public:
     Comment(const std::string& author, const std::string& text);
     void print() const;
+
+    Json::Value toJson() const;
+    static Comment fromJson(const Json::Value& json);
 };

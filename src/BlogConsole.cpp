@@ -10,6 +10,7 @@ BlogConsole::BlogConsole() {
     user_repo = std::make_shared<UserRepository>();
     auth_service = std::make_shared<AuthService>(user_repo);
     blog_service = std::make_shared<BlogService>(user_repo);
+    user_repo->loadFromFile("blog_data.json");
 }
 
 int BlogConsole::read_int() {
@@ -103,4 +104,6 @@ void BlogConsole::run() {
             default: std::cout << "Неверный выбор!\n";
         }
     } while (choice != 4);
+    
+    user_repo->saveToFile("blog_data.json");
 }

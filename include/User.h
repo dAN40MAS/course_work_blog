@@ -1,9 +1,10 @@
 #pragma once
-#include "Profile.h"
-#include "Blog.h"
+
 #include <memory>
 #include <string>
-#include <iostream>
+#include <json/json.h>
+#include "Profile.h"
+#include "Blog.h"
 
 class User {
     std::string username;
@@ -15,7 +16,9 @@ public:
     User(const std::string& username, const std::string& password, const Profile& profile);
     bool check_password(const std::string& pwd) const;
     Blog& get_blog();
-    Profile& get_profile();
     std::string get_username() const;
     void print_info() const;
+    
+    Json::Value toJson() const;
+    static std::shared_ptr<User> fromJson(const Json::Value& json);
 };
