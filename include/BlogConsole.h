@@ -15,6 +15,7 @@ public:
     void run();
 
 private:
+    int read_int();
     void print_main_menu();
     void handle_registration();
     void handle_login();
